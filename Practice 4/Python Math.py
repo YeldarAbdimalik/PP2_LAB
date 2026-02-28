@@ -1,21 +1,40 @@
+#task 1
+
+
 import math
 
-x = math.ceil(1.4)
-y = math.floor(1.4)
+degree = float(input("Input degree: "))
 
-z = math.sqrt(64)
+radian = degree * (math.pi / 180)
 
-a = min(5, 10, 25)
-b = max(5, 10, 25)
+print("Output radian:", round(radian, 6))
 
-c = abs(-7.25)
+#task 2
 
-d = pow(4, 3)
+height = float(input("Height: "))
+base1 = float(input("Base, first value: "))
+base2 = float(input("Base, second value: "))
 
-print(d) # returns 64
-print(c) # retunrs 7.25
-print(a) # returns 5
-print(b) # returns 25
-print(z) # returns 8
-print(x) # returns 2
-print(y) # returns 1
+area = ((base1 + base2) / 2) * height
+
+print("Expected Output:", area)
+
+#task 3
+
+import math
+
+n = int(input("Input number of sides: "))
+s = float(input("Input the length of a side: "))
+
+area = (n * s * s) / (4 * math.tan(math.pi / n))
+
+print("The area of the polygon is:", round(area, 2))
+
+#task 4
+
+base = float(input("Length of base: "))
+height = float(input("Height of parallelogram: "))
+
+area = base * height
+
+print("Expected Output:", float(area))
