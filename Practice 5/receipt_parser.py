@@ -2,6 +2,7 @@ import re
 
 with open("raw.txt", "r") as file:
     text = file.read()
+print(text)
 
 # Prices
 prices = re.findall(r"\d+\.\d{2}", text)
