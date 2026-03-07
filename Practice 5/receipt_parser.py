@@ -1,33 +1,54 @@
 import re
+import json
 
-with open("raw.txt", "r") as file:
-    text = file.read()
-print(text)
+# читаем файл
+with open("raw.txt", "r", encoding="utf-8") as f:
+    text = f.read()
 
-# Prices
-prices = re.findall(r"\d+\.\d{2}", text)
-print("Prices:", prices)
 
-# Total
-total = sum(map(float, prices))
-print("Total:", total)
+# ---------- дата и время ----------
+date_time = re.search(r"Время:\s*([\d\.]+\s[\d:]+)", text)
+date_time = date_time.group(1) if date_time else None
 
-# Products
-products = re.findall(r"([A-Za-z]+)\s\d+\.\d{2}", text)
-print("Products:", products)
 
-# Date
-date = re.search(r"\d{4}-\d{2}-\d{2}", text)
-if date:
-    print("Date:", date.group())
+# ---------- способ оплаты ----------
+payment = re.search(r"(Банковская карта|Наличные)", text)
+payment = payment.group(1) if payment else None
 
-# Time
-time = re.search(r"\d{2}:\d{2}", text)
-if time:
-    print("Time:", time.group())
 
-# Payment
-payment = re.search(r"(CARD|CASH)", text)
-if payment:
-    print("Payment:", payment.group())
+# ---------- итоговая сумма ----------
+total = re.search(r"ИТОГО:\s*\n([\d\s,]+)", text)
+total = total.group(1).strip() if total else None
 
+
+# ---------- товары ----------
+pattern = r"\d+\.\n(.+?)\n([\d,]+)\s*x\s*([\d\s,]+)\n([\d\s,]+)"
+
+items = []
+
+for match in re.findall(pattern, text):
+    name, qty, price, total_price = match
+
+    items.append({
+        "name": name.strip(),
+        "quantity": qty,
+        "price": price,
+        "total": total_price
+    })
+
+
+# ---------- итоговый JSON ----------
+receipt = {
+    "datetime": date_time,
+    "payment_method": payment,
+    "total_amount": total,
+    "items": items
+}
+
+
+# сохраняем JSON файл
+with open("receipt.json", "w", encoding="utf-8") as f:
+    json.dump(receipt, f, indent=4, ensure_ascii=False)
+
+
+print("Receipt parsed successfully!")
