@@ -146,4 +146,4 @@ def menu():
             break
 
 
-get_contacts()
+menu()
