@@ -15,7 +15,7 @@ class Clock:
 
         self.body = pygame.transform.scale(self.body, (500, 500))
         self.minute = pygame.transform.scale(self.minute, (190, 190))
-        self.second = pygame.transform.scale(self.second, (280, 280))
+        self.second = pygame.transform.scale(self.second, (260, 260))
 
     def draw_hand(self, img, angle):
         rotated = pygame.transform.rotate(img, angle)
@@ -31,10 +31,10 @@ class Clock:
         minute_angle = -(minutes * 6 + seconds * 0.1)
         second_angle = -(seconds * 6)
 
-        # фон
+        
         body_rect = self.body.get_rect(center=self.center)
         self.screen.blit(self.body, body_rect)
 
-        # стрелки
+        
         self.draw_hand(self.minute, minute_angle)
         self.draw_hand(self.second, second_angle)

@@ -5,16 +5,16 @@ from player import MusicPlayer
 pygame.init()
 pygame.mixer.init()
 
-# ===== ПУТИ =====
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 music_folder = os.path.join(BASE_DIR, "music")
 
-# Проверка папки
+
 if not os.path.exists(music_folder):
     print("Ошибка: папка music не найдена")
     exit()
 
-# ===== ПЛЕЙЛИСТ =====
+
 playlist = [
     os.path.join(music_folder, f)
     for f in os.listdir(music_folder)
@@ -25,10 +25,10 @@ if len(playlist) == 0:
     print("В папке music нет аудиофайлов")
     exit()
 
-# ===== ПЛЕЕР =====
+
 player = MusicPlayer(playlist)
 
-# ===== UI =====
+
 screen = pygame.display.set_mode((600, 400))
 pygame.display.set_caption("Music Player")
 
@@ -37,7 +37,7 @@ font = pygame.font.SysFont("Arial", 24)
 clock = pygame.time.Clock()
 running = True
 
-# ===== LOOP =====
+
 while running:
     screen.fill((30, 30, 30))
 
@@ -57,7 +57,7 @@ while running:
             elif event.key == pygame.K_q:
                 running = False
 
-    # ===== ТЕКСТ =====
+    
     track_name = os.path.basename(player.get_current_track())
 
     track_text = font.render(f"Track: {track_name}", True, (255, 255, 255))
