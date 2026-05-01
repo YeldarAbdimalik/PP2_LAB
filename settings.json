@@ -1,7 +1,7 @@
 {
     "sound": true,
     "car_color": "blue",
-    "difficulty": "normal",
+    "difficulty": "hard",
     "snake_color": [
         180,
         230,

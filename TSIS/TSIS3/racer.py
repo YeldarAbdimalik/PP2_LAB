@@ -1,233 +1,504 @@
-import pygame
 import random
-import os
+import time
+from pathlib import Path
 
-def load_trimmed(path):
-    img = pygame.image.load(path).convert_alpha()
-    rect = img.get_bounding_rect()
-    return img.subsurface(rect)
+import pygame
 
-# ---------- GAME OVER ----------
-def game_over_screen(screen, score):
-    font_big = pygame.font.SysFont(None, 60)
-    font = pygame.font.SysFont(None, 35)
-
-    while True:
-        screen.fill((30, 30, 30))
-
-        screen.blit(font_big.render("GAME OVER", True, (255,0,0)), (70,150))
-        screen.blit(font.render(f"Score: {score}", True, (255,255,255)), (140,250))
-
-        retry = pygame.Rect(120,320,160,50)
-        menu = pygame.Rect(120,390,160,50)
-
-        pygame.draw.rect(screen, (255,255,255), retry, 2)
-        pygame.draw.rect(screen, (255,255,255), menu, 2)
-
-        screen.blit(font.render("Retry", True, (255,255,255)), (150,335))
-        screen.blit(font.render("Menu", True, (255,255,255)), (150,405))
-
-        pygame.display.update()
-
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                return "menu"
-            if e.type == pygame.MOUSEBUTTONDOWN:
-                if retry.collidepoint(e.pos):
-                    return "retry"
-                if menu.collidepoint(e.pos):
-                    return "menu"
+from persistence import add_score
 
 
-# ---------- MAIN GAME ----------
-def run_game(screen, settings):
+WIDTH = 500
+HEIGHT = 700
+FPS = 60
 
-    WIDTH, HEIGHT = 400, 600
-    clock = pygame.time.Clock()
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (90, 90, 90)
+RED = (220, 0, 0)
+BLUE = (0, 0, 220)
+GREEN = (0, 180, 0)
+YELLOW = (255, 215, 0)
+ORANGE = (255, 140, 0)
+PURPLE = (130, 0, 130)
+CYAN = (0, 200, 255)
 
-    BASE = os.path.dirname(__file__)
-    ASSETS = os.path.join(BASE, "assets")
+LANES = [100, 200, 300, 400]
+FINISH_DISTANCE = 3000
+ASSET_DIR = Path(__file__).resolve().parent / "assets"
 
-    # ---------- ДОРОГА ----------
-    road = pygame.image.load(os.path.join(ASSETS, "road.png"))
-    road = pygame.transform.scale(road, (WIDTH, HEIGHT))
+DIFFICULTY_DATA = {
+    "easy": {
+        "enemy_speed": 4,
+        "traffic_delay": 1000,
+        "obstacle_delay": 2000
+    },
+    "normal": {
+        "enemy_speed": 5,
+        "traffic_delay": 800,
+        "obstacle_delay": 1800
+    },
+    "hard": {
+        "enemy_speed": 7,
+        "traffic_delay": 600,
+        "obstacle_delay": 1500
+    }
+}
 
-    y1 = 0
-    y2 = -HEIGHT
 
-    # ---------- ИГРОК ----------
-    color = settings["car_color"]
+def load_image(name, size=None):
+    image = pygame.image.load(str(ASSET_DIR / name)).convert_alpha()
 
-    if color == "green":
-        player = load_trimmed(os.path.join(ASSETS, "greenplayer.png"))
-        player = pygame.transform.scale(player, (50, 80))
+    if size:
+        image = pygame.transform.scale(image, size)
 
-    elif color == "yellow":
-        player = load_trimmed(os.path.join(ASSETS, "yellplayer.png"))
-        player = pygame.transform.scale(player, (50, 80))
+    return image
 
-    else:
-        player = load_trimmed(os.path.join(ASSETS, "bluePlayer.png"))
-        player = pygame.transform.scale(player, (50, 80))
 
-    # ---------- ВРАГ ----------
-    enemy = pygame.image.load(os.path.join(ASSETS, "Enemy.png")).convert_alpha()
-    enemy = pygame.transform.scale(enemy, (50, 80))
+def safe_lane(player_rect):
+    safe_lanes = []
 
-    # ---------- ОБЪЕКТЫ ----------
-    coin = pygame.image.load(os.path.join(ASSETS, "coin1.png")).convert_alpha()
-    coin = pygame.transform.scale(coin, (32,32))
+    for lane in LANES:
+        if abs(lane - player_rect.centerx) > 70:
+            safe_lanes.append(lane)
 
-    nitro_img = pygame.image.load(os.path.join(ASSETS, "nitro.png")).convert_alpha()
-    nitro_img = pygame.transform.scale(nitro_img, (32,32))
+    if len(safe_lanes) == 0:
+        safe_lanes = LANES[:]
 
-    shield_img = pygame.image.load(os.path.join(ASSETS, "shield.png")).convert_alpha()
-    shield_img = pygame.transform.scale(shield_img, (32,32))
+    return random.choice(safe_lanes)
 
-    # ---------- ЗВУК ----------
-    if settings["sound"]:
-        pygame.mixer.music.load(os.path.join(ASSETS, "background (1).wav"))
-        pygame.mixer.music.play(-1)
 
-    crash = pygame.mixer.Sound(os.path.join(ASSETS, "crash (1).wav"))
+class Player(pygame.sprite.Sprite):
+    def __init__(self, color):
+        super().__init__()
 
-    # ---------- ПЕРЕМЕННЫЕ ----------
-    px = WIDTH // 2
-    py = HEIGHT - 100
+        filename = f"Player_{color}.png"
+        self.image = load_image(filename, (50, 90))
 
-    enemies = []
-    coins = []
-    nitros = []
-    shields = []
+        self.rect = self.image.get_rect()
+        self.rect.centerx = WIDTH // 2
+        self.rect.bottom = HEIGHT - 20
+        self.speed = 6
 
-    score = 0
-
-    nitro_active = False
-    nitro_time = 0
-    shield = False
-
-    spawn_timer = 0
-
-    # ---------- GAME LOOP ----------
-    while True:
-
-        # 🎯 СКОРОСТЬ С УРОВНЯМИ
-        base_speed = 5
-        multiplier = 1 + (score // 10) * 0.5
-        base_speed *= multiplier
-
-        if nitro_active:
-            speed = base_speed * 1.3
-            if pygame.time.get_ticks() - nitro_time > 4000:
-                nitro_active = False
-        else:
-            speed = base_speed
-
-        # ---------- ДВИЖЕНИЕ ДОРОГИ ----------
-        y1 += speed
-        y2 += speed
-
-        if y1 >= HEIGHT:
-            y1 = -HEIGHT
-        if y2 >= HEIGHT:
-            y2 = -HEIGHT
-
-        screen.blit(road, (0, y1))
-        screen.blit(road, (0, y2))
-
-        # ---------- EVENTS ----------
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                pygame.mixer.music.stop()
-                return score
-
+    def move(self):
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_LEFT]:
-            px -= 6
+            self.rect.move_ip(-self.speed, 0)
         if keys[pygame.K_RIGHT]:
-            px += 6
+            self.rect.move_ip(self.speed, 0)
+        if keys[pygame.K_UP]:
+            self.rect.move_ip(0, -self.speed)
+        if keys[pygame.K_DOWN]:
+            self.rect.move_ip(0, self.speed)
 
-        px = max(0, min(WIDTH - 50, px))
+        if self.rect.left < 35:
+            self.rect.left = 35
+        if self.rect.right > WIDTH - 35:
+            self.rect.right = WIDTH - 35
+        if self.rect.top < 0:
+            self.rect.top = 0
+        if self.rect.bottom > HEIGHT:
+            self.rect.bottom = HEIGHT
 
-        # ---------- SPAWN ----------
-        spawn_timer += 1
-        if spawn_timer > max(15, 50 - score):
 
-            enemies.append([random.randint(0, WIDTH-50), -80])
-            coins.append([random.randint(0, WIDTH-32), -32])
 
-            if random.random() < 0.15:
-                nitros.append([random.randint(0, WIDTH-32), -32])
+class TrafficCar(pygame.sprite.Sprite):
+    def __init__(self, player_rect, speed):
+        super().__init__()
 
-            if random.random() < 0.1:
-                shields.append([random.randint(0, WIDTH-32), -32])
+        self.image = load_image("Enemy.png", (50, 90))
+        self.rect = self.image.get_rect()
+        self.rect.centerx = safe_lane(player_rect)
+        self.rect.bottom = -random.randint(40, 300)
+        self.speed = speed
 
-            spawn_timer = 0
+    def move(self, road_speed):
+        self.rect.y += self.speed + road_speed // 3
 
-        player_rect = pygame.Rect(px, py, 50, 80)
+        if self.rect.top > HEIGHT:
+            self.kill()
 
-        # ---------- ВРАГИ ----------
-        for e in enemies[:]:
-            e[1] += speed
-            screen.blit(enemy, e)
 
-            if player_rect.colliderect(pygame.Rect(e[0], e[1], 50, 80)):
+class Coin(pygame.sprite.Sprite):
+    def __init__(self, player_rect):
+        super().__init__()
+
+        coin_data = random.choice([
+            ("20tg.png", 20),
+            ("50tg.png", 50),
+            ("100tg.png", 100)
+        ])
+
+        self.filename = coin_data[0]
+        self.value = coin_data[1]
+
+        self.image = load_image(self.filename, (38, 38))
+        self.rect = self.image.get_rect()
+        self.rect.centerx = safe_lane(player_rect)
+        self.rect.y = -random.randint(60, 450)
+        self.speed = 3
+
+    def move(self, road_speed):
+        self.rect.y += self.speed + road_speed // 3
+
+        if self.rect.top > HEIGHT:
+            self.kill()
+
+
+class Obstacle(pygame.sprite.Sprite):
+    def __init__(self, player_rect):
+        super().__init__()
+
+        self.kind = random.choice(["barrier", "oil", "pothole", "speed_bump"])
+        self.image = pygame.Surface((65, 35), pygame.SRCALPHA)
+
+        if self.kind == "barrier":
+            pygame.draw.rect(self.image, ORANGE, (0, 0, 65, 35))
+            pygame.draw.rect(self.image, BLACK, (0, 0, 65, 35), 2)
+
+        elif self.kind == "oil":
+            pygame.draw.ellipse(self.image, BLACK, (6, 7, 53, 22))
+
+        elif self.kind == "pothole":
+            pygame.draw.ellipse(self.image, GRAY, (5, 5, 55, 25))
+            pygame.draw.ellipse(self.image, BLACK, (12, 9, 40, 16))
+
+        elif self.kind == "speed_bump":
+            pygame.draw.rect(self.image, YELLOW, (0, 12, 65, 12))
+            pygame.draw.rect(self.image, BLACK, (0, 12, 65, 12), 1)
+
+        self.rect = self.image.get_rect()
+        self.rect.centerx = safe_lane(player_rect)
+        self.rect.y = -random.randint(80, 500)
+        self.speed = 5
+
+    def move(self, road_speed):
+        self.rect.y += self.speed + road_speed // 3
+
+        if self.rect.top > HEIGHT:
+            self.kill()
+
+
+class MovingBarrier(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+
+        self.image = pygame.Surface((90, 28), pygame.SRCALPHA)
+        pygame.draw.rect(self.image, ORANGE, (0, 0, 90, 28))
+        pygame.draw.rect(self.image, BLACK, (0, 0, 90, 28), 2)
+
+        self.rect = self.image.get_rect()
+        self.rect.x = random.choice([55, WIDTH - 145])
+        self.rect.y = -60
+
+        self.speed_y = 3
+        self.speed_x = random.choice([-2, 2])
+
+    def move(self, road_speed):
+        self.rect.y += self.speed_y + road_speed // 4
+        self.rect.x += self.speed_x
+
+        if self.rect.left < 35 or self.rect.right > WIDTH - 35:
+            self.speed_x *= -1
+
+        if self.rect.top > HEIGHT:
+            self.kill()
+
+
+class PowerUp(pygame.sprite.Sprite):
+    def __init__(self, player_rect):
+        super().__init__()
+
+        self.kind = random.choice(["nitro", "shield", "repair"])
+        self.spawn_time = time.time()
+        self.timeout = 6
+
+        self.image = pygame.Surface((40, 40), pygame.SRCALPHA)
+
+        if self.kind == "nitro":
+            color = CYAN
+            letter = "N"
+        elif self.kind == "shield":
+            color = BLUE
+            letter = "S"
+        else:
+            color = GREEN
+            letter = "R"
+
+        pygame.draw.circle(self.image, color, (20, 20), 19)
+        pygame.draw.circle(self.image, BLACK, (20, 20), 19, 2)
+
+        font = pygame.font.SysFont("Verdana", 18, bold=True)
+        text = font.render(letter, True, WHITE)
+        self.image.blit(text, text.get_rect(center=(20, 20)))
+
+        self.rect = self.image.get_rect()
+        self.rect.centerx = safe_lane(player_rect)
+        self.rect.y = -random.randint(120, 550)
+        self.speed = 4
+
+    def move(self, road_speed):
+        self.rect.y += self.speed + road_speed // 3
+
+        if self.rect.top > HEIGHT:
+            self.kill()
+
+        if time.time() - self.spawn_time > self.timeout:
+            self.kill()
+
+
+def draw_background(screen, bg_y):
+    screen.fill((30, 120, 45))
+
+    road_left = 40
+    road_width = WIDTH - 80
+    lane_width = road_width // 4
+
+    # road with 4 lanes
+    pygame.draw.rect(screen, (190, 190, 190), (road_left, 0, road_width, HEIGHT))
+
+    # yellow road borders
+    pygame.draw.rect(screen, YELLOW, (road_left, 0, 4, HEIGHT))
+    pygame.draw.rect(screen, YELLOW, (road_left + road_width - 4, 0, 4, HEIGHT))
+
+    # white lane marks
+    for line_x in [road_left + lane_width, road_left + lane_width * 2, road_left + lane_width * 3]:
+        for y in range(-100, HEIGHT + 100, 150):
+            mark_y = (y + bg_y) % (HEIGHT + 150) - 100
+            pygame.draw.rect(screen, WHITE, (line_x - 4, mark_y, 8, 70))
+
+
+def draw_hud(screen, font, score, coins, distance, active_power, power_time, shield):
+    remaining = max(0, FINISH_DISTANCE - int(distance))
+
+    texts = [
+        f"Score: {int(score)}",
+        f"Coins: {coins}",
+        f"Distance: {int(distance)}m",
+        f"Remaining: {remaining}m",
+        f"Power: {active_power if active_power else 'None'}",
+        f"Time: {power_time:.1f}s" if active_power == "nitro" else "",
+        f"Shield: {'ON' if shield else 'OFF'}"
+    ]
+
+    y = 10
+    for text in texts:
+        if text:
+            image = font.render(text, True, BLACK)
+            screen.blit(image, (10, y))
+            y += 24
+
+
+def run_game(screen, username, settings):
+    clock = pygame.time.Clock()
+    font = pygame.font.SysFont("Verdana", 18)
+
+    crash_sound = pygame.mixer.Sound(str(ASSET_DIR / "crash.wav"))
+    coin_sound = pygame.mixer.Sound(str(ASSET_DIR / "money.wav"))
+    power_sound = pygame.mixer.Sound(str(ASSET_DIR / "bip.wav"))
+
+    if settings["sound"]:
+        pygame.mixer.music.load(str(ASSET_DIR / "background.wav"))
+        pygame.mixer.music.play(-1)
+
+    difficulty_name = settings.get("difficulty", "normal")
+    difficulty = DIFFICULTY_DATA[difficulty_name]
+
+    player = Player(settings["car_color"])
+
+
+    all_sprites = pygame.sprite.Group()
+    traffic_sprites = pygame.sprite.Group()
+    coin_sprites = pygame.sprite.Group()
+    obstacle_sprites = pygame.sprite.Group()
+    power_sprites = pygame.sprite.Group()
+
+    all_sprites.add(player)
+
+    running = True
+    won = False
+
+    lives = 3
+
+    bg_y = 0
+    road_speed = 5
+    distance = 0
+    score = 0
+    coins = 0
+
+    shield = False
+    active_power = None
+    power_end = 0
+
+    last_traffic_spawn = pygame.time.get_ticks()
+    last_coin_spawn = pygame.time.get_ticks()
+    last_obstacle_spawn = pygame.time.get_ticks()
+    last_power_spawn = pygame.time.get_ticks()
+    last_event_spawn = pygame.time.get_ticks()
+
+    while running:
+        now = pygame.time.get_ticks()
+        level = 1 + int(distance // 600)
+
+        traffic_delay = max(250, difficulty["traffic_delay"] - level * 70)
+        obstacle_delay = max(350, difficulty["obstacle_delay"] - level * 70)
+        enemy_speed = difficulty["enemy_speed"] + level
+
+        if active_power == "nitro":
+            if time.time() > power_end:
+                active_power = None
+                road_speed = 5 + level
+            else:
+                road_speed = 10 + level
+        else:
+            road_speed = 5 + level
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.mixer.music.stop()
+                return "quit", {
+                    "score": int(score),
+                    "distance": int(distance),
+                    "coins": coins
+                }
+
+        if now - last_traffic_spawn > traffic_delay:
+            traffic = TrafficCar(player.rect, enemy_speed)
+            traffic_sprites.add(traffic)
+            all_sprites.add(traffic)
+            last_traffic_spawn = now
+
+        if now - last_coin_spawn > 1050:
+            coin = Coin(player.rect)
+            coin_sprites.add(coin)
+            all_sprites.add(coin)
+            last_coin_spawn = now
+
+        if now - last_obstacle_spawn > obstacle_delay:
+            obstacle = Obstacle(player.rect)
+            obstacle_sprites.add(obstacle)
+            all_sprites.add(obstacle)
+            last_obstacle_spawn = now
+
+        if now - last_power_spawn > 6500:
+            power = PowerUp(player.rect)
+            power_sprites.add(power)
+            all_sprites.add(power)
+            last_power_spawn = now
+
+        if now - last_event_spawn > 5000:
+            barrier = MovingBarrier()
+            obstacle_sprites.add(barrier)
+            all_sprites.add(barrier)
+            last_event_spawn = now
+
+        player.move()
+
+        for traffic in list(traffic_sprites):
+            traffic.move(road_speed)
+
+        for coin in list(coin_sprites):
+            coin.move(road_speed)
+
+        for obstacle in list(obstacle_sprites):
+            obstacle.move(road_speed)
+
+        for power in list(power_sprites):
+            power.move(road_speed)
+
+        bg_y += road_speed
+        if bg_y >= HEIGHT:
+            bg_y = 0
+
+        distance += road_speed * 0.08
+        score += road_speed * 0.03
+
+        for coin in pygame.sprite.spritecollide(player, coin_sprites, True):
+            if coin.value == 20:
+              coins += 1
+            elif coin.value == 50:
+                coins += 2
+            elif coin.value == 100:
+                coins += 3
+
+            score += coin.value
+
+
+            if settings["sound"]:
+                coin_sound.play()
+
+        for power in pygame.sprite.spritecollide(player, power_sprites, True):
+            if active_power is None and not shield:
+                if settings["sound"]:
+                    power_sound.play()
+
+                if power.kind == "nitro":
+                    active_power = "nitro"
+                    power_end = time.time() + 4
+
+                elif power.kind == "shield":
+                    shield = True
+
+                elif power.kind == "repair":
+                    score += 50
+                    for obstacle in list(obstacle_sprites):
+                        obstacle.kill()
+                        break
+
+        hit_traffic = pygame.sprite.spritecollideany(player, traffic_sprites)
+        hit_obstacle = pygame.sprite.spritecollideany(player, obstacle_sprites)
+
+        if hit_traffic:
+            if shield:
+                shield = False
+                hit_traffic.kill()
+            else:
+                lives -= 1
+                hit_traffic.kill()
+
+                if lives <= 0:
+                    if settings["sound"]:
+                        crash_sound.play()
+                    running = False
+
+
+        elif hit_obstacle:
+            if hit_obstacle.kind == "oil":
+        # 🔥 замедление вместо смерти
+                road_speed = max(2, road_speed - 3)
+
+            else:
                 if shield:
                     shield = False
-                    enemies.remove(e)
+                    hit_obstacle.kill()
                 else:
-                    crash.play()
-                    pygame.mixer.music.stop()
-                    pygame.time.delay(300)
+                    if settings["sound"]:
+                        crash_sound.play()
+                    running = False
 
-                    choice = game_over_screen(screen, score)
 
-                    if choice == "retry":
-                        return run_game(screen, settings)
-                    else:
-                        return score
+        if distance >= FINISH_DISTANCE:
+            won = True
+            running = False
 
-        # ---------- МОНЕТЫ ----------
-        for c in coins[:]:
-            c[1] += speed
-            screen.blit(coin, c)
+        draw_background(screen, bg_y)
 
-            if player_rect.colliderect(pygame.Rect(c[0], c[1], 32, 32)):
-                score += 1
-                coins.remove(c)
+        for entity in all_sprites:
+            screen.blit(entity.image, entity.rect)
 
-        # ---------- НИТРО ----------
-        for n in nitros[:]:
-            n[1] += speed
-            screen.blit(nitro_img, n)
+        draw_hud(screen,font,score,coins,distance,active_power,max(0, power_end - time.time()),shield)
 
-            if player_rect.colliderect(pygame.Rect(n[0], n[1], 32, 32)):
-                nitro_active = True
-                nitro_time = pygame.time.get_ticks()
-                nitros.remove(n)
+        pygame.display.flip()
+        clock.tick(FPS)
 
-        # ---------- ЩИТ ----------
-        for s in shields[:]:
-            s[1] += speed
-            screen.blit(shield_img, s)
+    pygame.mixer.music.stop()
 
-            if player_rect.colliderect(pygame.Rect(s[0], s[1], 32, 32)):
-                shield = True
-                shields.remove(s)
+    final_score = int(score + distance * 0.5 + coins * 20)
+    add_score(username, final_score, distance, coins)
 
-        # ---------- ИГРОК ----------
-        screen.blit(player, (px, py))
-
-        # ---------- UI ----------
-        font = pygame.font.SysFont(None, 30)
-        screen.blit(font.render(f"Score: {score}", True, (255,255,255)), (10,10))
-
-        if shield:
-            screen.blit(font.render("Shield", True, (0,255,255)), (10,40))
-
-        if nitro_active:
-            screen.blit(font.render("Nitro", True, (255,255,0)), (10,70))
-
-        pygame.display.update()
-        clock.tick(60)
+    return "game_over", {
+        "score": final_score,
+        "distance": int(distance),
+        "coins": coins,
+        "won": won
+    }

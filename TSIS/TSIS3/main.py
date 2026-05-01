@@ -1,212 +1,251 @@
 import pygame
-import sys
-import os
-from racer import run_game
-import json
+
+from persistence import load_leaderboard, load_settings, save_settings
+from racer import run_game, WIDTH, HEIGHT
+from ui import Button, draw_center_text, draw_text, BLACK, WHITE, BLUE, GRAY, GREEN, RED
+
 
 pygame.init()
 
-WIDTH, HEIGHT = 400, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("TSIS3 RACER")
+pygame.display.set_caption("TSIS3 Racer")
+clock = pygame.time.Clock()
 
-FONT = pygame.font.SysFont(None, 40)
+font = pygame.font.SysFont("Verdana", 22)
+big_font = pygame.font.SysFont("Verdana", 42)
+small_font = pygame.font.SysFont("Verdana", 18)
 
-
-# ---------- SETTINGS ----------
-def load_settings():
-    try:
-        with open("settings.json") as f:
-            return json.load(f)
-    except:
-        settings = {
-            "sound": True,
-            "car_color": "blue",
-            "difficulty": "normal"
-        }
-        with open("settings.json", "w") as f:
-            json.dump(settings, f)
-        return settings
+settings = load_settings()
 
 
-def save_settings(settings):
-    with open("settings.json", "w") as f:
-        json.dump(settings, f)
-
-
-# ---------- LEADERBOARD ----------
-def load_leaderboard():
-    try:
-        with open("leaderboard.json") as f:
-            return json.load(f)
-    except:
-        return []
-
-
-def save_leaderboard(data):
-    with open("leaderboard.json", "w") as f:
-        json.dump(data, f)
-
-
-# ---------- BUTTON ----------
-def draw_button(text, x, y):
-    rect = pygame.Rect(x, y, 200, 50)
-    pygame.draw.rect(screen, (255,255,255), rect, 2)
-
-    label = FONT.render(text, True, (0,0,0))
-    screen.blit(label, (x + 50, y + 10))
-
-    return rect
-
-
-# ---------- NAME INPUT ----------
-def name_input():
+def ask_username():
     name = ""
-    settings = load_settings()
 
     while True:
-        screen.fill((240,240,240))
+        screen.fill(WHITE)
 
-        title = FONT.render("Enter your name", True, (0,0,0))
-        screen.blit(title, (80,200))
+        draw_center_text(screen, "Enter your name", big_font, BLACK, 210)
+        draw_center_text(screen, name + "|", font, BLUE, 290)
+        draw_center_text(screen, "Press ENTER to start", small_font, GRAY, 350)
 
-        text = FONT.render(name, True, (0,0,255))
-        screen.blit(text, (150,260))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return None
 
-        hint = pygame.font.SysFont(None, 25).render("Press ENTER to start", True, (100,100,100))
-        screen.blit(hint, (110,320))
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    if name.strip() == "":
+                        name = "Player"
+                    return name
 
-        pygame.display.update()
-
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
-            if e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_RETURN:
-                    score = run_game(screen, settings)
-
-                    lb = load_leaderboard()
-                    lb.append({"name": name, "score": score})
-                    lb = sorted(lb, key=lambda x: x["score"], reverse=True)[:10]
-                    save_leaderboard(lb)
-
-                    return
-
-                elif e.key == pygame.K_BACKSPACE:
+                elif event.key == pygame.K_BACKSPACE:
                     name = name[:-1]
 
+                elif event.key == pygame.K_ESCAPE:
+                    return None
+
                 else:
-                    if len(name) < 10:
-                        name += e.unicode
+                    if len(name) < 12:
+                        name += event.unicode
+
+        pygame.display.flip()
+        clock.tick(60)
 
 
-# ---------- LEADERBOARD ----------
-def leaderboard_screen():
-    data = load_leaderboard()
-
-    while True:
-        screen.fill((240,240,240))
-
-        title = FONT.render("Leaderboard", True, (0,0,0))
-        screen.blit(title, (120,50))
-
-        y = 120
-        for i, entry in enumerate(data):
-            text = f"{i+1}. {entry['name']} - {entry['score']}"
-            screen.blit(FONT.render(text, True, (0,0,0)), (80, y))
-            y += 40
-
-        back = draw_button("Back", 100, 500)
-
-        pygame.display.update()
-
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
-            if e.type == pygame.MOUSEBUTTONDOWN:
-                if back.collidepoint(e.pos):
-                    return
-
-
-# ---------- SETTINGS ----------
-def settings_menu():
-    settings = load_settings()
-
-    while True:
-        screen.fill((240,240,240))
-
-        title = FONT.render("Settings", True, (0,0,0))
-        screen.blit(title, (130,80))
-
-        sound_btn = draw_button(f"Sound: {'ON' if settings['sound'] else 'OFF'}", 100, 180)
-        color_btn = draw_button(f"Car: {settings['car_color']}", 100, 250)
-        diff_btn = draw_button(f"Difficulty: {settings['difficulty']}", 100, 320)
-        back_btn = draw_button("Back", 100, 420)
-
-        pygame.display.update()
-
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
-            if e.type == pygame.MOUSEBUTTONDOWN:
-                if sound_btn.collidepoint(e.pos):
-                    settings["sound"] = not settings["sound"]
-
-                elif color_btn.collidepoint(e.pos):
-                    colors = ["blue", "green", "yellow"]
-                    i = colors.index(settings["car_color"])
-                    settings["car_color"] = colors[(i + 1) % 3]
-
-                elif diff_btn.collidepoint(e.pos):
-                    diffs = ["easy", "normal", "hard"]
-                    i = diffs.index(settings["difficulty"])
-                    settings["difficulty"] = diffs[(i + 1) % 3]
-
-                elif back_btn.collidepoint(e.pos):
-                    save_settings(settings)
-                    return
-
-
-# ---------- MAIN MENU ----------
 def main_menu():
+    play_btn = Button(170, 210, 160, 50, "Play")
+    leader_btn = Button(170, 280, 160, 50, "Leaderboard")
+    settings_btn = Button(170, 350, 160, 50, "Settings")
+    quit_btn = Button(170, 420, 160, 50, "Quit")
+
     while True:
-        screen.fill((240,240,240))
+        screen.fill(WHITE)
 
-        title = FONT.render("TSIS3 RACER", True, (0,0,0))
-        screen.blit(title, (90,100))
+        draw_center_text(screen, "TSIS3 RACER", big_font, BLACK, 120)
 
-        play = draw_button("Play", 100, 200)
-        lb = draw_button("Leaderboard", 100, 270)
-        settings_btn = draw_button("Settings", 100, 340)
-        quit_btn = draw_button("Quit", 100, 410)
+        play_btn.draw(screen, font)
+        leader_btn.draw(screen, font)
+        settings_btn.draw(screen, font)
+        quit_btn.draw(screen, font)
 
-        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "quit"
 
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+            if play_btn.clicked(event):
+                return "play"
 
-            if e.type == pygame.MOUSEBUTTONDOWN:
-                if play.collidepoint(e.pos):
-                    name_input()
+            if leader_btn.clicked(event):
+                return "leaderboard"
 
-                elif lb.collidepoint(e.pos):
-                    leaderboard_screen()
+            if settings_btn.clicked(event):
+                return "settings"
 
-                elif settings_btn.collidepoint(e.pos):
-                    settings_menu()
+            if quit_btn.clicked(event):
+                return "quit"
 
-                elif quit_btn.collidepoint(e.pos):
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def leaderboard_screen():
+    back_btn = Button(170, 610, 160, 45, "Back")
+
+    while True:
+        screen.fill(WHITE)
+
+        draw_center_text(screen, "Leaderboard TOP 10", big_font, BLACK, 70)
+
+        scores = load_leaderboard()
+
+        if not scores:
+            draw_center_text(screen, "No scores yet", font, GRAY, 220)
+
+        y = 135
+        for index, item in enumerate(scores[:10], start=1):
+            text = f"{index}. {item['name']} | Score: {item['score']} | Distance: {item['distance']}m"
+            draw_text(screen, text, small_font, BLACK, 50, y)
+            y += 36
+
+        back_btn.draw(screen, font)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "quit"
+
+            if back_btn.clicked(event):
+                return "menu"
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def settings_screen():
+    sound_btn = Button(120, 170, 260, 45, "")
+    color_btn = Button(120, 240, 260, 45, "")
+    difficulty_btn = Button(120, 310, 260, 45, "")
+    back_btn = Button(120, 420, 260, 45, "Back")
+
+    colors = ["blue", "red", "green", "yellow"]
+    difficulties = ["easy", "normal", "hard"]
+
+    while True:
+
+        screen.fill(WHITE)
+
+        draw_center_text(screen, "Settings", big_font, BLACK, 90)
+
+        sound_btn.text = f"Sound: {'ON' if settings['sound'] else 'OFF'}"
+        color_btn.text = f"Car color: {settings['car_color']}"
+        difficulty_btn.text = f"Difficulty: {settings['difficulty']}"
+
+        sound_btn.draw(screen, font)
+        color_btn.draw(screen, font)
+        difficulty_btn.draw(screen, font)
+        back_btn.draw(screen, font)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "quit"
+
+            if sound_btn.clicked(event):
+                settings["sound"] = not settings["sound"]
+                save_settings(settings)
+
+            if color_btn.clicked(event):
+                index = colors.index(settings["car_color"])
+                settings["car_color"] = colors[(index + 1) % len(colors)]
+                save_settings(settings)
+
+            if difficulty_btn.clicked(event):
+                index = difficulties.index(settings["difficulty"])
+                settings["difficulty"] = difficulties[(index + 1) % len(difficulties)]
+                save_settings(settings)
+
+            if back_btn.clicked(event):
+                return "menu"
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def game_over_screen(result, username):
+    retry_btn = Button(110, 470, 130, 45, "Retry")
+    menu_btn = Button(260, 470, 160, 45, "Main Menu")
+
+    while True:
+        screen.fill(WHITE)
+
+        title = "FINISH!" if result.get("won") else "GAME OVER"
+        color = GREEN if result.get("won") else RED
+
+        draw_center_text(screen, title, big_font, color, 150)
+
+        draw_center_text(screen, f"Player: {username}", font, BLUE, 200)
+
+        draw_center_text(screen, f"Score: {result['score']}", font, BLACK, 260)
+        draw_center_text(screen, f"Distance: {result['distance']}m", font, BLACK, 310)
+        draw_center_text(screen, f"Coins: {result['coins']}", font, BLACK, 360)
+
+        retry_btn.draw(screen, font)
+        menu_btn.draw(screen, font)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "quit"
+
+            if retry_btn.clicked(event):
+                return "retry"
+
+            if menu_btn.clicked(event):
+                return "menu"
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def main():
+    while True:
+        action = main_menu()
+
+        if action == "quit":
+            break
+
+        elif action == "leaderboard":
+            if leaderboard_screen() == "quit":
+                break
+
+        elif action == "settings":
+            if settings_screen() == "quit":
+                break
+
+        elif action == "play":
+            username = ask_username()
+
+            if username is None:
+                continue
+
+            while True:
+                state, result = run_game(screen, username, settings)
+
+                if state == "quit":
                     pygame.quit()
-                    sys.exit()
+                    return
+
+                next_action = game_over_screen(result, username)
 
 
-# ---------- START ----------
-main_menu()
+                if next_action == "retry":
+                    continue
+
+                if next_action == "quit":
+                    pygame.quit()
+                    return
+
+                break
+
+    pygame.quit()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,7 @@
 from connect import connect
 import csv
 import json
+import os
 
 # ================= INSERT =================
 def insert_contact(name, email, birthday, group_name, phone, phone_type):
@@ -90,6 +91,8 @@ def insert_from_csv(file):
         reader = csv.reader(f)
         for row in reader:
             insert_contact(*row)
+    print("Import successful")
+    
 
 
 # ================= JSON ================
@@ -124,6 +127,31 @@ def export_json(filename):
     conn.close()
 
     print("Export successful")
+
+def import_json(filename):
+    conn = connect()
+    cur = conn.cursor()
+
+    with open(filename, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    for item in data:
+        name = item["name"]
+        email = item["email"]
+        birthday = item["birthday"]
+        group_name = item["group"]
+
+        # phone нет в JSON → можно поставить пустое или заглушку
+        phone = "000000"
+        phone_type = "mobile"
+
+        insert_contact(name, email, birthday, group_name, phone, phone_type)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print("Import successful")
 
 
 # ================= MENU =================
@@ -160,7 +188,10 @@ def menu():
             filter_by_group(input("Group: "))
 
         elif ch == "5":
-            insert_from_csv("contacts.csv")
+            base_dir = os.path.dirname(__file__)
+            file_path = os.path.join(base_dir, "contacts.csv")
+            insert_from_csv(file_path)
+
 
         elif ch == "6":
             export_json("contacts.json")

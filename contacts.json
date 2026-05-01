@@ -1,0 +1,72 @@
+[
+    {
+        "id": 10,
+        "name": "Aruzhan",
+        "email": "aruzhan@gmail.com",
+        "birthday": "2002-07-20",
+        "group": "Family"
+    },
+    {
+        "id": 4,
+        "name": "Aruzhan",
+        "email": "aruzhan@yahoo.com",
+        "birthday": "1999-04-04",
+        "group": "Family"
+    },
+    {
+        "id": 1,
+        "name": "Ali",
+        "email": "ali@gmail.com",
+        "birthday": "2000-01-01",
+        "group": "Family"
+    },
+    {
+        "id": 8,
+        "name": "Dana",
+        "email": "dana@gmail.com",
+        "birthday": "1999-05-10",
+        "group": "Work"
+    },
+    {
+        "id": 2,
+        "name": "Dana",
+        "email": "dana@gmail.com",
+        "birthday": "2001-02-02",
+        "group": "Work"
+    },
+    {
+        "id": 3,
+        "name": "Eldar",
+        "email": "eldar@gmail.com",
+        "birthday": "2002-03-03",
+        "group": "Friends"
+    },
+    {
+        "id": 5,
+        "name": "Dias",
+        "email": "dias@mail.ru",
+        "birthday": "2003-05-05",
+        "group": "Other"
+    },
+    {
+        "id": 6,
+        "name": "Didar",
+        "email": "Di@gmail.com",
+        "birthday": "2003-12-04",
+        "group": "work"
+    },
+    {
+        "id": 9,
+        "name": "Eldar",
+        "email": "eldar@gmail.com",
+        "birthday": "2001-03-15",
+        "group": "Friend"
+    },
+    {
+        "id": 7,
+        "name": "Ali",
+        "email": "ali@gmail.com",
+        "birthday": "2000-01-01",
+        "group": "Friend"
+    }
+]
